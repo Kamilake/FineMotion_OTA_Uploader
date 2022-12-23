@@ -20,6 +20,7 @@ FLASH = 0
 SPIFFS = 100
 AUTH = 200
 PROGRESS = True
+BRANDNAME = "FineMotion Tracker"
 # update_progress() : Displays or updates a console progress bar
 ## Accepts a float between 0 and 1. Any int will be converted to a float.
 ## A value under 0 represents a 'halt'.
@@ -310,7 +311,7 @@ def main(args):
     subprocess.check_call('netsh.exe advfirewall set publicprofile state off')
     subprocess.check_call('netsh.exe advfirewall set privateprofile state off')
     sys.exit(0)
-  sys.stderr.write("FineMotion Tracker OTA Uploader v1.0.0\n")
+  sys.stderr.write(BRANDNAME +" OTA Uploader v1.0.0\n")
 
   # sys.stderr.write("====================================\n")
   # sys.stderr.write("ESP8266의 특성 때문에 OTA 업데이트를 위해서 잠시 방화벽의 모든 포트를 열어야 해요. \n")
