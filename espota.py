@@ -13,7 +13,7 @@ import os
 import optparse
 import logging
 import hashlib
-import random
+import discover
 
 # Commands
 FLASH = 0
@@ -38,7 +38,7 @@ def update_progress(progress):
       status = "중단됨...\r\n"
     if progress >= 1:
       progress = 1
-      status = "성공했어요!\r\n"
+      status = "성공했어요!\r\n스스로 껏다 켜질 때까지 트래커의 전원을 끄지 말아주세요.\r\n"
     block = int(round(barLength*progress))
     text = "\r펌웨어를 올리고 있어요: [{0}] {1}% {2}".format( "="*block + " "*(barLength-block), int(progress*100), status)
     sys.stderr.write(text)
@@ -234,7 +234,7 @@ def parser(unparsed_args):
     dest = "host_port",
     type = "int",
     help = "Host server ota Port. Default random 10000-60000",
-    default = random.randint(10000,60000)
+    default = 6969
   )
   parser.add_option_group(group)
 
@@ -311,13 +311,12 @@ def main(args):
     subprocess.check_call('netsh.exe advfirewall set privateprofile state off')
     sys.exit(0)
   sys.stderr.write("FineMotion Tracker OTA Uploader v1.0.0\n")
-  sys.stderr.write("파인모션 트래커 OTA 업로더 v1.0.0\n")
 
-  sys.stderr.write("====================================\n")
-  sys.stderr.write("ESP8266의 특성 때문에 OTA 업데이트를 위해서 잠시 방화벽의 모든 포트를 열어야 해요. \n")
-  sys.stderr.write("업데이트가 끝나면 자동으로 원래대로 돌려 놓을게요\n")
-  sys.stderr.write("괜찮으시겠어요? 원하지 않는다면 Ctrl+C를 눌러주세요\n")
-  sys.stderr.write("====================================\n")
+  # sys.stderr.write("====================================\n")
+  # sys.stderr.write("ESP8266의 특성 때문에 OTA 업데이트를 위해서 잠시 방화벽의 모든 포트를 열어야 해요. \n")
+  # sys.stderr.write("업데이트가 끝나면 자동으로 원래대로 돌려 놓을게요\n")
+  # sys.stderr.write("괜찮으시겠어요? 원하지 않는다면 Ctrl+C를 눌러주세요\n")
+  # sys.stderr.write("====================================\n")
 
 
 
@@ -335,13 +334,18 @@ def main(args):
   # check options
   global PROGRESS
   PROGRESS = True
-  if (not options.esp_ip):
-    # logging.critical("Not enough arguments.")
-    sys.stderr.write("먼저, 트래커의 전원을 켠 다음 SlimeVR 서버로 IP주소를 찾아주세요.\n")
-    sys.stderr.write("SlimeVR 서버에서 IP 주소가 표시되나요? ( udp:// 숫자 )\n")
-    sys.stderr.write("그렇다면, 연결하려는 트래커의 IP 주소를 입력해주세요: ")
-    options.esp_ip = input()
-  # end if
+
+  try:
+    sock4 = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    sock4.bind(("0.0.0.0", 6969))
+    sock4.close()
+  except:
+    sys.stderr.write("SlimeVR 서버가 실행되고 있는 모양이에요.\n")
+    sys.stderr.write("SlimeVR 서버를 종료하고 다시 실행해주세요.\n")
+    input("종료하려면 아무 키나 눌러주세요...")
+    sys.exit(0)
+
+
 
   if (not options.image):
     sys.stderr.write("\n업로드할 이미지 파일을 선택해주세요\n")
@@ -356,6 +360,24 @@ def main(args):
     options.image = ".\img\\"+files[int(input())]
     sys.stderr.write("선택한 파일: "+options.image+"\n")
 
+  if (not options.esp_ip):
+    # logging.critical("Not enough arguments.")
+    # sys.stderr.write("먼저, 트래커의 전원을 켠 다음 SlimeVR 서버로 IP주소를 찾아주세요.\n")
+    # sys.stderr.write("SlimeVR 서버에서 IP 주소가 표시되나요? ( udp:// 숫자 )\n")
+    # sys.stderr.write("그렇다면, 연결하려는 트래커의 IP 주소를 입력해주세요: ")
+    # options.esp_ip = input()
+    sys.stderr.write("업데이트하기 전에, 업데이트하려는 트래커의 전원을 켜주세요!\n")
+    # input("업데이트를 시작하려면 아무 키나 눌러주세요...")
+    tracker = discover.find_tracker()
+    options.esp_ip = str(tracker['ip'])
+    sys.stderr.write("트래커의 IP 주소: "+options.esp_ip+"\n")
+
+    
+  # end if
+  
+  sys.stderr.write("업데이트를 시작할게요. 잠시만 기다려주세요.\n")
+  sys.stderr.write("업데이트 중에 전원을 끄지 말아주세요\n")
+
   command = FLASH
   if (options.spiffs):
     command = SPIFFS
@@ -363,10 +385,10 @@ def main(args):
 
 
 
-  import win32com.shell.shell
-  script = os.path.abspath(sys.argv[0])
-  params = ' '.join(['-E']+[script] + sys.argv[1:] + ['Firewall_off'])
-  win32com.shell.shell.ShellExecuteEx(lpVerb='runas', lpFile=sys.executable, lpParameters=params)
+  # import win32com.shell.shell
+  # script = os.path.abspath(sys.argv[0])
+  # params = ' '.join(['-E']+[script] + sys.argv[1:] + ['Firewall_off'])
+  # win32com.shell.shell.ShellExecuteEx(lpVerb='runas', lpFile=sys.executable, lpParameters=params)
 
   try:
    serve(options.esp_ip, options.host_ip, options.esp_port, options.host_port, options.auth, options.image, command)
@@ -375,9 +397,9 @@ def main(args):
   except Exception as e:
     sys.stderr.write("업로드 중 오류가 발생했어요: "+str(e)+"\n")
 
-  script = os.path.abspath(sys.argv[0])
-  params = ' '.join(['-E']+[script] + sys.argv[1:] + ['Firewall_on'])
-  win32com.shell.shell.ShellExecuteEx(lpVerb='runas', lpFile=sys.executable, lpParameters=params)
+  # script = os.path.abspath(sys.argv[0])
+  # params = ' '.join(['-E']+[script] + sys.argv[1:] + ['Firewall_on'])
+  # win32com.shell.shell.ShellExecuteEx(lpVerb='runas', lpFile=sys.executable, lpParameters=params)
   
 
 
