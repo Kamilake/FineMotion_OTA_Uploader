@@ -9,11 +9,11 @@
 from __future__ import print_function
 import socket
 import sys
+import select
 import os
 import optparse
 import logging
 import hashlib
-import discover
 
 # Commands
 FLASH = 0
@@ -21,6 +21,63 @@ SPIFFS = 100
 AUTH = 200
 PROGRESS = True
 BRANDNAME = "FineMotion Tracker"
+DEVICENAME = "FineMotion 트래커"
+VERSION = "0.1.0"
+
+# define Python user-defined exceptions
+class TrackerNotFoundException(Exception):
+    "The device could not be detected within the specified timeout"
+    pass
+def find_tracker():
+  sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+  retry = 0
+  tracker = {}
+  mac = [None]*6
+  sock.bind(("0.0.0.0", 6969))
+  print(f"{DEVICENAME}를 찾는 중..", end="", flush=True)
+  try:
+      while True:
+          ready = select.select([sock], [], [], 0.2)
+          if ready[0]:
+              print("OK!")
+              data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
+              try:
+                boardType = int.from_bytes(
+                    data[0:4], byteorder='big', signed=False)
+                tracker['boardType'] = boardType
+                imuType = int.from_bytes(data[4:8], byteorder='big', signed=False)
+                tracker['imuType'] = imuType
+                mcuType = int.from_bytes(data[8:12], byteorder='big', signed=False)
+                tracker['mcuType'] = mcuType
+                imuInfo = int.from_bytes(
+                    data[12:16], byteorder='big', signed=False)
+                tracker['imuInfo'] = imuInfo
+                data[16:20]
+                data[20:24]
+                firmwareBuild = int.from_bytes(
+                    data[24:28], byteorder='big', signed=False)
+                tracker['firmwareBuild'] = firmwareBuild
+                firmware = data[41:41+data[40]].decode('ascii')
+                tracker['firmware'] = firmware
+                for i in range(0, 6):
+                    mac[i] = data[41+data[40]+i]
+                tracker['mac'] = ("mac: %02X:%02X:%02X:%02X:%02X:%02X" % (mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]))
+              except:
+                    ''
+              tracker['ip'] = addr[0]
+              tracker['port'] = addr[1]
+              break
+          else:
+              print(".", end="", flush=True)
+              retry += 1
+              if retry > 50:
+                  raise TrackerNotFoundException(f"{DEVICENAME}를 찾을 수 없어요")
+                  break
+  except KeyboardInterrupt:
+      print('취소됨')
+  sock.close()
+  return tracker
+
 # update_progress() : Displays or updates a console progress bar
 ## Accepts a float between 0 and 1. Any int will be converted to a float.
 ## A value under 0 represents a 'halt'.
@@ -39,7 +96,7 @@ def update_progress(progress):
       status = "중단됨...\r\n"
     if progress >= 1:
       progress = 1
-      status = "성공했어요!\r\n스스로 껏다 켜질 때까지 트래커의 전원을 끄지 말아주세요.\r\n"
+      status = f"성공했어요!\r\n스스로 껏다 켜질 때까지 {DEVICENAME}의 전원을 끄지 말아주세요.\r\n"
     block = int(round(barLength*progress))
     text = "\r펌웨어를 올리고 있어요: [{0}] {1}% {2}".format( "="*block + " "*(barLength-block), int(progress*100), status)
     sys.stderr.write(text)
@@ -97,7 +154,7 @@ def serve(remoteAddr, localAddr, remotePort, localPort, password, filename, comm
       passmd5 = hashlib.md5(password.encode()).hexdigest()
       result_text = '%s:%s:%s' % (passmd5 ,nonce, cnonce)
       result = hashlib.md5(result_text.encode()).hexdigest()
-      sys.stderr.write('트래커를 복구 모드로 바꿀게요...')
+      sys.stderr.write(f'{DEVICENAME}를 복구 모드로 바꿀게요...')
       sys.stderr.flush()
       message = '%d %s %s\n' % (AUTH, cnonce, result)
       sock2.sendto(message.encode(), remote_address)
@@ -106,7 +163,7 @@ def serve(remoteAddr, localAddr, remotePort, localPort, password, filename, comm
         data = sock2.recv(32).decode()
       except Exception:
         sys.stderr.write('실패\n')
-        logging.error('트래커가 응답하지 않았어요.')
+        logging.error(f'{DEVICENAME}가 응답하지 않았어요.')
         logging.error('전원을 켜고 1분 안으로 다시 시도해주세요.')
         sock2.close()
         return 1
@@ -133,9 +190,7 @@ def serve(remoteAddr, localAddr, remotePort, localPort, password, filename, comm
     logging.error('No response from device')
     sock.close()
     return 1
-
   received_ok = False
-
   try:
     f = open(filename, "rb")
     if (PROGRESS):
@@ -313,14 +368,6 @@ def main(args):
     sys.exit(0)
   sys.stderr.write(BRANDNAME +" OTA Uploader v1.0.0\n")
 
-  # sys.stderr.write("====================================\n")
-  # sys.stderr.write("ESP8266의 특성 때문에 OTA 업데이트를 위해서 잠시 방화벽의 모든 포트를 열어야 해요. \n")
-  # sys.stderr.write("업데이트가 끝나면 자동으로 원래대로 돌려 놓을게요\n")
-  # sys.stderr.write("괜찮으시겠어요? 원하지 않는다면 Ctrl+C를 눌러주세요\n")
-  # sys.stderr.write("====================================\n")
-
-
-
   # adapt log level
   loglevel = logging.WARNING
   if (options.debug):
@@ -347,32 +394,43 @@ def main(args):
     sys.exit(0)
 
 
-
   if (not options.image):
-    sys.stderr.write("\n업로드할 이미지 파일을 선택해주세요\n")
-    #show ./img list
-    files=os.walk(".\img").__next__()[2]
-    i=0
-    for filename in files:
-      sys.stderr.write(str(i)+") "+filename+"\n")
-      i+=1
-    #end for
-    sys.stderr.write("번호를 입력해주세요: ")
-    options.image = ".\img\\"+files[int(input())]
-    sys.stderr.write("선택한 파일: "+options.image+"\n")
+    while(True):
+      try:
+        sys.stderr.write("\n업로드할 이미지 파일을 선택해주세요\n")
+        #show ./img list
+        files=os.walk(".\img").__next__()[2]
+        i=0
+        for filename in files:
+          sys.stderr.write(str(i)+") "+filename+"\n")
+          i+=1
+        #end for
+        sys.stderr.write("번호를 입력해주세요: ")
+        options.image = ".\img\\"+files[int(input())]
+        sys.stderr.write("선택한 파일: "+options.image+"\n")
+        break
+      except IndexError:
+        sys.stderr.write("\n다시 입력해주세요")
+        continue
+      except ValueError:
+        sys.stderr.write("\n다시 입력해주세요")
+        continue
 
   if (not options.esp_ip):
     # logging.critical("Not enough arguments.")
-    # sys.stderr.write("먼저, 트래커의 전원을 켠 다음 SlimeVR 서버로 IP주소를 찾아주세요.\n")
+    # sys.stderr.write(f"먼저, {DEVICENAME}의 전원을 켠 다음 SlimeVR 서버로 IP주소를 찾아주세요.\n")
     # sys.stderr.write("SlimeVR 서버에서 IP 주소가 표시되나요? ( udp:// 숫자 )\n")
-    # sys.stderr.write("그렇다면, 연결하려는 트래커의 IP 주소를 입력해주세요: ")
+    # sys.stderr.write(f"그렇다면, 연결하려는 {DEVICENAME}의 IP 주소를 입력해주세요: ")
     # options.esp_ip = input()
-    sys.stderr.write("업데이트하기 전에, 업데이트하려는 트래커의 전원을 켜주세요!\n")
-    # input("업데이트를 시작하려면 아무 키나 눌러주세요...")
-    tracker = discover.find_tracker()
+    sys.stderr.write(f"업데이트하기 전에, 업데이트하려는 {DEVICENAME}의 전원을 켜주세요!\n")
+    try:
+      tracker = find_tracker()
+    except TrackerNotFoundException as e:
+      sys.stderr.write(str(e)+"\n")
+      sys.stderr.write("다시 시도하려면 엔터를 눌러주세요. 종료하려면 Ctrl+C를 눌러주세요...\n")
+      input()
     options.esp_ip = str(tracker['ip'])
-    sys.stderr.write("트래커의 IP 주소: "+options.esp_ip+"\n")
-
+    sys.stderr.write(f"{DEVICENAME}의 IP 주소: "+options.esp_ip+"\n")
     
   # end if
   
@@ -394,7 +452,7 @@ def main(args):
   try:
    serve(options.esp_ip, options.host_ip, options.esp_port, options.host_port, options.auth, options.image, command)
   except KeyboardInterrupt:
-    sys.stderr.write("업로드를 중단할게요. 트래커는 원래대로 돌아갔어요\n")
+    sys.stderr.write(f"업로드를 중단할게요. {DEVICENAME}는 원래대로 돌아갔어요\n")
   except Exception as e:
     sys.stderr.write("업로드 중 오류가 발생했어요: "+str(e)+"\n")
 
