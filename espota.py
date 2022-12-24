@@ -349,27 +349,6 @@ def parser(unparsed_args):
 def main(args):
   # get options
   options = parser(args)
-
-  # if sys.argv[-1] != ASADMIN:
-  #   script = os.path.abspath(sys.argv[0])
-  #   params = ' -E '.join([script] + sys.argv[1:] + [ASADMIN])
-  #   win32com.shell.shell.ShellExecuteEx(lpVerb='runas', lpFile=sys.executable, lpParameters=params)
-  #   sys.stderr.write("sys.executable: " + sys.executable + "\nlpParameters: " + params)
-  #   sys.exit(0)
-
-  if sys.argv[-1] == 'Firewall_on':
-    # netsh.exe advfirewall set publicprofile state on
-    import subprocess
-    subprocess.check_call('netsh.exe advfirewall set publicprofile state on')
-    subprocess.check_call('netsh.exe advfirewall set privateprofile state on')
-    sys.exit(0)
-
-  if sys.argv[-1] == 'Firewall_off':
-    # netsh.exe advfirewall set publicprofile state off
-    import subprocess
-    subprocess.check_call('netsh.exe advfirewall set publicprofile state off')
-    subprocess.check_call('netsh.exe advfirewall set privateprofile state off')
-    sys.exit(0)
   sys.stderr.write(f"{BRANDNAME} OTA Uploader v1.0.0 by {AUTHOR}\n")
 
   # adapt log level
@@ -422,7 +401,7 @@ def main(args):
 
   if (not options.esp_ip):
     while(True):
-      # logging.critical("Not enough arguments.")
+      # # logging.critical("Not enough arguments.")
       # sys.stderr.write(f"먼저, {DEVICENAME}의 전원을 켠 다음 SlimeVR 서버로 IP주소를 찾아주세요.\n")
       # sys.stderr.write("SlimeVR 서버에서 IP 주소가 표시되나요? ( udp:// 숫자 )\n")
       # sys.stderr.write(f"그렇다면, 연결하려는 {DEVICENAME}의 IP 주소를 입력해주세요: ")
@@ -447,26 +426,12 @@ def main(args):
   if (options.spiffs):
     command = SPIFFS
   # end if
-
-
-
-  # import win32com.shell.shell
-  # script = os.path.abspath(sys.argv[0])
-  # params = ' '.join(['-E']+[script] + sys.argv[1:] + ['Firewall_off'])
-  # win32com.shell.shell.ShellExecuteEx(lpVerb='runas', lpFile=sys.executable, lpParameters=params)
-
   try:
    serve(options.esp_ip, options.host_ip, options.esp_port, options.host_port, options.auth, options.image, command)
   except KeyboardInterrupt:
     sys.stderr.write(f"업로드를 중단할게요. {DEVICENAME}는 원래대로 돌아갔어요\n")
   except Exception as e:
     sys.stderr.write("업로드 중 오류가 발생했어요: "+str(e)+"\n")
-
-  # script = os.path.abspath(sys.argv[0])
-  # params = ' '.join(['-E']+[script] + sys.argv[1:] + ['Firewall_on'])
-  # win32com.shell.shell.ShellExecuteEx(lpVerb='runas', lpFile=sys.executable, lpParameters=params)
-  
-
 
 # end main
 
