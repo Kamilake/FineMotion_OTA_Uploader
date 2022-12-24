@@ -22,6 +22,7 @@ AUTH = 200
 PROGRESS = True
 BRANDNAME = "FineMotion Tracker"
 DEVICENAME = "FineMotion 트래커"
+AUTHOR = "Kamilake"
 VERSION = "0.1.0"
 
 # define Python user-defined exceptions
@@ -74,7 +75,10 @@ def find_tracker():
                   raise TrackerNotFoundException(f"{DEVICENAME}를 찾을 수 없어요")
                   break
   except KeyboardInterrupt:
-      print('취소됨')
+      print('취소됨, 작업 정리 중...', end="", flush=True)
+      sock.close()
+      print('OK!')
+      sys.exit(0)
   sock.close()
   return tracker
 
@@ -366,7 +370,7 @@ def main(args):
     subprocess.check_call('netsh.exe advfirewall set publicprofile state off')
     subprocess.check_call('netsh.exe advfirewall set privateprofile state off')
     sys.exit(0)
-  sys.stderr.write(BRANDNAME +" OTA Uploader v1.0.0\n")
+  sys.stderr.write(f"{BRANDNAME} OTA Uploader v1.0.0 by {AUTHOR}\n")
 
   # adapt log level
   loglevel = logging.WARNING
@@ -417,18 +421,20 @@ def main(args):
         continue
 
   if (not options.esp_ip):
-    # logging.critical("Not enough arguments.")
-    # sys.stderr.write(f"먼저, {DEVICENAME}의 전원을 켠 다음 SlimeVR 서버로 IP주소를 찾아주세요.\n")
-    # sys.stderr.write("SlimeVR 서버에서 IP 주소가 표시되나요? ( udp:// 숫자 )\n")
-    # sys.stderr.write(f"그렇다면, 연결하려는 {DEVICENAME}의 IP 주소를 입력해주세요: ")
-    # options.esp_ip = input()
-    sys.stderr.write(f"업데이트하기 전에, 업데이트하려는 {DEVICENAME}의 전원을 켜주세요!\n")
-    try:
-      tracker = find_tracker()
-    except TrackerNotFoundException as e:
-      sys.stderr.write(str(e)+"\n")
-      sys.stderr.write("다시 시도하려면 엔터를 눌러주세요. 종료하려면 Ctrl+C를 눌러주세요...\n")
-      input()
+    while(True):
+      # logging.critical("Not enough arguments.")
+      # sys.stderr.write(f"먼저, {DEVICENAME}의 전원을 켠 다음 SlimeVR 서버로 IP주소를 찾아주세요.\n")
+      # sys.stderr.write("SlimeVR 서버에서 IP 주소가 표시되나요? ( udp:// 숫자 )\n")
+      # sys.stderr.write(f"그렇다면, 연결하려는 {DEVICENAME}의 IP 주소를 입력해주세요: ")
+      # options.esp_ip = input()
+      sys.stderr.write(f"업데이트하기 전에, 업데이트하려는 {DEVICENAME}의 전원을 켜주세요!\n")
+      try:
+        tracker = find_tracker()
+        break
+      except TrackerNotFoundException as e:
+        sys.stderr.write(str(e)+"\n")
+        sys.stderr.write("다시 시도하려면 엔터를 눌러주세요. 종료하려면 Ctrl+C를 눌러주세요...\n")
+        input()
     options.esp_ip = str(tracker['ip'])
     sys.stderr.write(f"{DEVICENAME}의 IP 주소: "+options.esp_ip+"\n")
     
