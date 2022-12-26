@@ -20,9 +20,9 @@ FLASH = 0
 SPIFFS = 100
 AUTH = 200
 PROGRESS = True
-BRANDNAME = "FineMotion Tracker"
-DEVICENAME = "FineMotion 트래커"
-AUTHOR = "Kamilake"
+BRANDNAME = "#BRANDNAME# #DEVICENAME#"
+DEVICENAME = "#트래커이름# #장치#"
+AUTHOR = "#만든사람이름#"
 VERSION = "0.1.0"
 
 # define Python user-defined exceptions
@@ -191,7 +191,7 @@ def serve(remoteAddr, localAddr, remotePort, localPort, password, filename, comm
     sock.settimeout(None)
     connection.settimeout(None)
   except Exception:
-    logging.error('No response from device')
+    logging.error(f'{DEVICENAME}를 찾을 수 없어요. 방화벽이나 프록시 설정을 확인해주세요.')
     sock.close()
     return 1
   received_ok = False
