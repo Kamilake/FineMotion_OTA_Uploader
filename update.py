@@ -14,15 +14,34 @@ import os
 import optparse
 import logging
 import hashlib
+import i18n
+import locale
+import ctypes
+i18n.set('file_format', 'json')
+i18n.set('filename_format', 'lang.json')
+i18n.set('locale', locale.windows_locale[ ctypes.windll.kernel32.GetUserDefaultUILanguage() ])
+# sys.stdout.write(i18n.get('locale'))
+i18n.load_path.append(os.path.abspath('lang'))
+# print(os.path.abspath('lang'))
+i18n.set('locale', "en")
+try:
+  i18n.t('hi')
+except(i18n.loaders.loader.I18nFileLoadError):
+  i18n.set('locale', 'en')
+  sys.stdout.write("'ㅁ'!\n")
+# print(i18n.t('hi'))
 
 # Commands
 FLASH = 0
 SPIFFS = 100
 AUTH = 200
 PROGRESS = True
-BRANDNAME = "#BRANDNAME# #DEVICENAME#"
-DEVICENAME = "#트래커이름# #장치#"
-AUTHOR = "#만든사람이름#"
+# BRANDNAME = "#BRANDNAME# #DEVICENAME#"
+# DEVICENAME = "#TRACKERNAME# #DEVICENAME#"
+# AUTHOR = "#AUTHORNAME#"
+BRANDNAME = "FineMotion Tracker"
+DEVICENAME = "FineMotion 트래커"
+AUTHOR = "Kamilake"
 VERSION = "0.1.0"
 
 # define Python user-defined exceptions
@@ -35,12 +54,12 @@ def find_tracker():
   tracker = {}
   mac = [None]*6
   sock.bind(("0.0.0.0", 6969))
-  print(f"{DEVICENAME}를 찾는 중..", end="", flush=True)
+  sys.stdout.write(i18n.t('findingDevice',DEVICENAME=DEVICENAME)) #, end="", flush=True)
   try:
       while True:
           ready = select.select([sock], [], [], 0.2)
           if ready[0]:
-              print("OK!")
+              sys.stdout.write("OK!\n")
               data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
               try:
                 boardType = int.from_bytes(
@@ -69,15 +88,17 @@ def find_tracker():
               tracker['port'] = addr[1]
               break
           else:
-              print(".", end="", flush=True)
+              sys.stdout.write(".")  # , end="", flush=True)
+              sys.stdout.flush()
               retry += 1
               if retry > 50:
-                  raise TrackerNotFoundException(f"{DEVICENAME}를 찾을 수 없어요")
+                  raise TrackerNotFoundException(i18n.t('trackerNotFoundException',DEVICENAME=DEVICENAME))
                   break
   except KeyboardInterrupt:
-      print('취소됨, 작업 정리 중...', end="", flush=True)
+      sys.stderr.write(i18n.t('interrupted'))
+      sys.stderr.flush()
       sock.close()
-      print('OK!')
+      sys.stderr.write('OK!')
       sys.exit(0)
   sock.close()
   return tracker
@@ -94,16 +115,21 @@ def update_progress(progress):
       progress = float(progress)
     if not isinstance(progress, float):
       progress = 0
-      status = "error: progress var must be float\r\n"
+      # status = "error: progress var must be float\r\n"
+      status = i18n.t('progressMustBeFloat') + "\r\n"
     if progress < 0:
       progress = 0
-      status = "중단됨...\r\n"
+      # status = "중단됨...\r\n"
+      status = i18n.t('cancelled') + "\r\n"
     if progress >= 1:
       progress = 1
-      status = f"성공했어요!\r\n스스로 껏다 켜질 때까지 {DEVICENAME}의 전원을 끄지 말아주세요.\r\n"
+      # status = f"성공했어요!\r\n스스로 껏다 켜질 때까지 {DEVICENAME}의 전원을 끄지 말아주세요.\r\n"
+      status = i18n.t('successButDontTurnOff',DEVICENAME=DEVICENAME) + "\r\n"
     block = int(round(barLength*progress))
-    text = "\r펌웨어를 올리고 있어요: [{0}] {1}% {2}".format( "="*block + " "*(barLength-block), int(progress*100), status)
-    sys.stderr.write(text)
+    # text = "\r펌웨어를 올리고 있어요: [{0}] {1}% {2}".format( "="*block + " "*(barLength-block), int(progress*100), status)
+    # "uploadingFirmware": "펌웨어를 올리고 있어요: %{PROGRESSBAR} %{PROGRESS}% %{STATUS}",
+    text = i18n.t('uploadingFirmware',PROGRESSBAR="="*block + " "*(barLength-block),PROGRESS=int(progress*100),STATUS=status)
+    sys.stderr.write("\r"+text)
     sys.stderr.flush()
   else:
     sys.stderr.write('.')
@@ -145,9 +171,7 @@ def serve(remoteAddr, localAddr, remotePort, localPort, password, filename, comm
   try:
     data = sock2.recv(128).decode()
   except Exception:
-    logging.error('트래커를 찾을 수 없어요')
-    logging.error('트래커가 켜져 있는지 확인해주세요.')
-    logging.error('켜져 있다면 Wi-Fi에 연결될 때까지 기다리거나 IP 주소가 바뀌었는지 확인해주세요.')
+    logging.error(i18n.t('trackerNotFound'))
     sock2.close()
     return 1
   if (data != "OK"):
@@ -158,21 +182,24 @@ def serve(remoteAddr, localAddr, remotePort, localPort, password, filename, comm
       passmd5 = hashlib.md5(password.encode()).hexdigest()
       result_text = '%s:%s:%s' % (passmd5 ,nonce, cnonce)
       result = hashlib.md5(result_text.encode()).hexdigest()
-      sys.stderr.write(f'{DEVICENAME}를 복구 모드로 바꿀게요...')
+      sys.stdout.write(i18n.t('recoveryModeInit',DEVICENAME=DEVICENAME))
       sys.stderr.flush()
+      sys.stdout.flush()
       message = '%d %s %s\n' % (AUTH, cnonce, result)
       sock2.sendto(message.encode(), remote_address)
       sock2.settimeout(10)
       try:
         data = sock2.recv(32).decode()
       except Exception:
-        sys.stderr.write('실패\n')
-        logging.error(f'{DEVICENAME}가 응답하지 않았어요.')
-        logging.error('전원을 켜고 1분 안으로 다시 시도해주세요.')
+        sys.stderr.write(i18n.t('fail') + '\n')
+        logging.error(i18n.t('trackerDidntRespond',DEVICENAME=DEVICENAME))
+        # logging.error('전원을 켜고 1분 안으로 다시 시도해주세요.')
+        logging.error(i18n.t('turnOnAndTryAgain'))
         sock2.close()
         return 1
       if (data != "OK"):
-        sys.stderr.write('실패\n')
+        # sys.stderr.write('실패\n')
+        sys.stderr.write(i18n.t('fail') + '\n')
         logging.error('%s', data)
         sock2.close()
         sys.exit(1)
@@ -191,7 +218,8 @@ def serve(remoteAddr, localAddr, remotePort, localPort, password, filename, comm
     sock.settimeout(None)
     connection.settimeout(None)
   except Exception:
-    logging.error(f'{DEVICENAME}를 찾을 수 없어요. 방화벽이나 프록시 설정을 확인해주세요.')
+    # logging.error(f'{DEVICENAME}를 찾을 수 없어요. 방화벽이나 프록시 설정을 확인해주세요.')
+    logging.error(i18n.t('recoveryModeDeviceNotFound',DEVICENAME=DEVICENAME))
     sock.close()
     return 1
   received_ok = False
@@ -216,14 +244,16 @@ def serve(remoteAddr, localAddr, remotePort, localPort, password, filename, comm
           received_ok = True
       except Exception:
         sys.stderr.write('\n')
-        logging.error('업로드에 실패했어요.')
+        # logging.error('업로드에 실패했어요.')
+        logging.error(i18n.t('uploadFailed'))
         connection.close()
         f.close()
         sock.close()
         return 1
 
     sys.stderr.write('\n')
-    logging.info('결과를 기다리는 중이에요...')
+    # logging.info('결과를 기다리는 중이에요...')
+    logging.info(i18n.t('waitingForResult'))
     # libraries/ArduinoOTA/ArduinoOTA.cpp L311 L320
     # only sends digits or 'OK'. We must not not close
     # the connection before receiving the 'O' of 'OK'
@@ -371,33 +401,39 @@ def main(args):
     sock4.bind(("0.0.0.0", 6969))
     sock4.close()
   except:
-    sys.stderr.write("SlimeVR 서버가 실행되고 있는 모양이에요.\n")
-    sys.stderr.write("SlimeVR 서버를 종료하고 다시 실행해주세요.\n")
-    input("종료하려면 아무 키나 눌러주세요...")
+    sys.stderr.write(i18n.t('serverAlreadyRunning')+"\n")
+    sys.stderr.write(i18n.t('pleaseCloseServerAndRunAgain')+"\n")
+    input(i18n.t('pressAnyKeyToExit'))
     sys.exit(0)
 
 
   if (not options.image):
     while(True):
       try:
-        sys.stderr.write("\n업로드할 이미지 파일을 선택해주세요\n")
+        sys.stdout.write(i18n.t('pleaseSelectImageFile'))
         #show ./img list
         files=os.walk(".\img").__next__()[2]
         i=0
         for filename in files:
-          sys.stderr.write(str(i)+") "+filename+"\n")
+          sys.stdout.write(str(i)+") "+filename+"\n")
           i+=1
         #end for
-        sys.stderr.write("번호를 입력해주세요: ")
+        sys.stdout.write(i18n.t('pleaseInputNumber'))
         options.image = ".\img\\"+files[int(input())]
-        sys.stderr.write("선택한 파일: "+options.image+"\n")
+        sys.stdout.write(i18n.t('selectedFileIs',FILENAME=options.image)+"\n")
         break
       except IndexError:
-        sys.stderr.write("\n다시 입력해주세요")
+        sys.stderr.write("\n"+i18n.t('pleaseTypeAgain')) 
         continue
       except ValueError:
-        sys.stderr.write("\n다시 입력해주세요")
+        sys.stderr.write("\n"+i18n.t('pleaseTypeAgain'))
         continue
+      except KeyboardInterrupt:
+        sys.stderr.write(i18n.t('interrupted'))
+        sys.stderr.flush()
+        # nothing to clean up
+        sys.stderr.write('OK!')
+        sys.exit(0)
 
   if (not options.esp_ip):
     while(True):
@@ -406,21 +442,27 @@ def main(args):
       # sys.stderr.write("SlimeVR 서버에서 IP 주소가 표시되나요? ( udp:// 숫자 )\n")
       # sys.stderr.write(f"그렇다면, 연결하려는 {DEVICENAME}의 IP 주소를 입력해주세요: ")
       # options.esp_ip = input()
-      sys.stderr.write(f"업데이트하기 전에, 업데이트하려는 {DEVICENAME}의 전원을 켜주세요!\n")
+      # sys.stdout.write(f"업데이트하기 전에, 업데이트하려는 {DEVICENAME}의 전원을 켜주세요!\n")
+      sys.stdout.write(i18n.t('pleaseTurnOnPowerOfDevice',DEVICENAME=DEVICENAME)+"\n")
       try:
         tracker = find_tracker()
         break
       except TrackerNotFoundException as e:
         sys.stderr.write(str(e)+"\n")
-        sys.stderr.write("다시 시도하려면 엔터를 눌러주세요. 종료하려면 Ctrl+C를 눌러주세요...\n")
+        # sys.stderr.write("다시 시도하려면 엔터를 눌러주세요. 종료하려면 Ctrl+C를 눌러주세요...\n")
+        sys.stderr.write(i18n.t('pleasePressEnterOrCtrlC')+"\n")
         input()
     options.esp_ip = str(tracker['ip'])
-    sys.stderr.write(f"{DEVICENAME}의 IP 주소: "+options.esp_ip+"\n")
+    # sys.stdout.write(f"{DEVICENAME}의 IP 주소: "+options.esp_ip+"\n")
+    sys.stdout.write(i18n.t('deviceIP',DEVICENAME=DEVICENAME,IP=options.esp_ip)+"\n")
     
   # end if
   
-  sys.stderr.write("업데이트를 시작할게요. 잠시만 기다려주세요.\n")
-  sys.stderr.write("업데이트 중에 전원을 끄지 말아주세요\n")
+  # sys.stdout.write("업데이트를 시작할게요. 잠시만 기다려주세요.\n")
+  # sys.stderr.write("업데이트 중에 전원을 끄지 말아주세요\n")
+
+  sys.stdout.write(i18n.t('startUpdate')+"\n")
+  sys.stderr.write(i18n.t('doNotTurnOffPower')+"\n")
 
   command = FLASH
   if (options.spiffs):
@@ -429,9 +471,11 @@ def main(args):
   try:
    serve(options.esp_ip, options.host_ip, options.esp_port, options.host_port, options.auth, options.image, command)
   except KeyboardInterrupt:
-    sys.stderr.write(f"업로드를 중단할게요. {DEVICENAME}는 원래대로 돌아갔어요\n")
+    # sys.stderr.write(f"업로드를 중단할게요. {DEVICENAME}는 원래대로 돌아갔어요\n")
+    sys.stderr.write(i18n.t('uploadInterrupted',DEVICENAME=DEVICENAME)+"\n")
   except Exception as e:
-    sys.stderr.write("업로드 중 오류가 발생했어요: "+str(e)+"\n")
+    # sys.stderr.write("업로드 중 오류가 발생했어요: "+str(e)+"\n")
+    sys.stderr.write(i18n.t('uploadError',ERROR=str(e))+"\n")
 
 # end main
 
