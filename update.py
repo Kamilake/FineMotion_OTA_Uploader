@@ -23,7 +23,7 @@ i18n.set('locale', locale.windows_locale[ ctypes.windll.kernel32.GetUserDefaultU
 # sys.stdout.write(i18n.get('locale'))
 i18n.load_path.append(os.path.abspath('lang'))
 # print(os.path.abspath('lang'))
-i18n.set('locale', "en")
+# i18n.set('locale', "en")
 try:
   i18n.t('hi')
 except(i18n.loaders.loader.I18nFileLoadError):
