@@ -415,7 +415,8 @@ def main(args):
         files=os.walk(".\img").__next__()[2]
         i=0
         for filename in files:
-          sys.stdout.write(str(i)+") "+filename+"\n")
+          if filename.endswith(".bin"):
+            sys.stdout.write(str(i)+") "+filename.replace(".bin","") +"\n")
           i+=1
         #end for
         sys.stdout.write(i18n.t('pleaseInputNumber'))
