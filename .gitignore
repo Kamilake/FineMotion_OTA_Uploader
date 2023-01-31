@@ -1,3 +1,4 @@
 *.pyc
 펌웨어_업데이트_시작하기.bat
 python
+img/*
